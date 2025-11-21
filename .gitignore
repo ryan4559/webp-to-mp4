@@ -2,6 +2,8 @@ node_modules/
 outputs/
 uploads/
 .env
+*.webp
+*.mp4
 .DS_Store
 Thumbs.db
 *.log
@@ -9,3 +11,4 @@ task.md
 walkthrough.md
 implementation_plan.md
 .claude/
+DEPLOYMENT.md

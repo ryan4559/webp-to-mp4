@@ -4,14 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A local web application that converts animated WebP files to MP4 video format using manual frame coalescing and FFmpeg encoding.
+A web application that converts animated WebP files to MP4 video format using manual frame coalescing and FFmpeg encoding. Supports both local execution and cloud deployment (Render, Railway, Heroku, etc.).
 
 ## Running the Application
 
+### Local Development
+
 ```bash
-npm install  # Install dependencies first
-npm start    # Starts server on http://localhost:3000
+npm install           # Install dependencies first
+cp .env.example .env  # Copy environment variables template (optional, uses defaults if skipped)
+npm start             # Starts server on http://localhost:3000
 ```
+
+### Cloud Deployment
+
+Set the following environment variables on your cloud platform:
+- `PORT` - Automatically set by most platforms
+- `MAX_FILE_SIZE_MB` - Maximum file size in MB (default: 50)
+- `CONVERT_RATE_LIMIT_WINDOW_MIN` - Conversion rate limit window in minutes (default: 15)
+- `CONVERT_RATE_LIMIT_MAX` - Max conversion requests per window (default: 10)
+- `GENERAL_RATE_LIMIT_WINDOW_MIN` - General rate limit window in minutes (default: 15)
+- `GENERAL_RATE_LIMIT_MAX` - Max general requests per window (default: 100)
+
+See `.env.example` for full configuration options.
 
 ## Core Architecture
 
@@ -67,7 +82,9 @@ The conversion process involves **manual frame composition** (coalescing) becaus
 
 ## File Structure
 
-- `server.js` - Express server with WebP→MP4 conversion pipeline
+- `server.js` - Express server with WebP→MP4 conversion pipeline, rate limiting, and security features
+- `.env` - Environment variables configuration (not in git, create from `.env.example`)
+- `.env.example` - Template for environment variables with defaults
 - `public/` - Frontend files (HTML/CSS/JS)
   - `index.html` - Main UI
   - `style.css` - Glassmorphism design with dark theme
@@ -80,8 +97,27 @@ The conversion process involves **manual frame composition** (coalescing) becaus
 - `node-webpmux` (v3.2.1) - WebP parsing and frame extraction (raw, unprocessed data)
 - `pngjs` (v7.0.0) - PNG encoding for intermediate frames
 - `fluent-ffmpeg` (v2.1.2) + `ffmpeg-static` (v5.2.0) - Video encoding
-- `multer` (v1.4.5-lts.1) - File upload handling
+- `multer` (v1.4.5-lts.1) - File upload handling with size limits and validation
 - `express` (v4.18.2) - Web server
+- `express-rate-limit` (v7.x) - Rate limiting middleware for API protection
+- `dotenv` (v16.x) - Environment variable management
+
+## Security & Performance Features
+
+### File Upload Security
+- **File size limit**: Configurable via `MAX_FILE_SIZE_MB` (default: 50MB)
+- **File type validation**: Only accepts WebP files (checks both MIME type and extension)
+- **Error handling**: Graceful error messages for invalid uploads
+
+### Rate Limiting
+- **Conversion endpoint**: Configurable rate limit (default: 10 requests per 15 minutes per IP)
+- **General endpoints**: Configurable rate limit (default: 100 requests per 15 minutes per IP)
+- **DoS protection**: Prevents abuse and resource exhaustion
+
+### Health Check
+- **`/health` endpoint**: Returns `200 OK` for cloud platform health checks
+
+All security parameters are configurable via environment variables (see `.env.example`).
 
 ## Known Issues & Debugging
 

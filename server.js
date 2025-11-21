@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const multer = require('multer');
 const ffmpeg = require('fluent-ffmpeg');
@@ -6,9 +8,17 @@ const path = require('path');
 const fs = require('fs');
 const WebP = require('node-webpmux');
 const { PNG } = require('pngjs');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
-const port = 3000;
+
+// Configuration from environment variables
+const PORT = process.env.PORT || 3000;
+const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE_MB || '50') * 1024 * 1024;
+const CONVERT_RATE_LIMIT_WINDOW = parseInt(process.env.CONVERT_RATE_LIMIT_WINDOW_MIN || '15') * 60 * 1000;
+const CONVERT_RATE_LIMIT_MAX = parseInt(process.env.CONVERT_RATE_LIMIT_MAX || '10');
+const GENERAL_RATE_LIMIT_WINDOW = parseInt(process.env.GENERAL_RATE_LIMIT_WINDOW_MIN || '15') * 60 * 1000;
+const GENERAL_RATE_LIMIT_MAX = parseInt(process.env.GENERAL_RATE_LIMIT_MAX || '100');
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -27,10 +37,55 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+// File filter to accept only WebP files
+const fileFilter = (req, file, cb) => {
+    const allowedMimes = ['image/webp'];
+    const allowedExts = ['.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+
+    if (allowedMimes.includes(file.mimetype) && allowedExts.includes(ext)) {
+        cb(null, true);
+    } else {
+        cb(new Error('只接受 WebP 格式的檔案！Only WebP files are allowed!'), false);
+    }
+};
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: MAX_FILE_SIZE
+    },
+    fileFilter: fileFilter
+});
+
+// Rate limiting for conversion endpoint
+const convertLimiter = rateLimit({
+    windowMs: CONVERT_RATE_LIMIT_WINDOW,
+    max: CONVERT_RATE_LIMIT_MAX,
+    message: '請求次數過多，請稍後再試。Too many requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// General rate limiting for all requests
+const generalLimiter = rateLimit({
+    windowMs: GENERAL_RATE_LIMIT_WINDOW,
+    max: GENERAL_RATE_LIMIT_MAX,
+    message: '請求次數過多，請稍後再試。Too many requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Apply general rate limiting to all requests
+app.use(generalLimiter);
 
 // Serve static files
 app.use(express.static('public'));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
 
 // Ensure outputs directory exists
 const outputDir = 'outputs';
@@ -38,8 +93,8 @@ if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir);
 }
 
-// Conversion endpoint
-app.post('/convert', upload.single('webpFile'), async (req, res) => {
+// Conversion endpoint with rate limiting
+app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res) => {
     if (!req.file) {
         return res.status(400).send('No file uploaded.');
     }
@@ -232,6 +287,20 @@ app.post('/convert', upload.single('webpFile'), async (req, res) => {
     }
 });
 
+// Error handling middleware for multer and other errors
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            const maxSizeMB = MAX_FILE_SIZE / (1024 * 1024);
+            return res.status(400).send(`檔案太大！最大允許 ${maxSizeMB}MB。File too large! Maximum size is ${maxSizeMB}MB.`);
+        }
+        return res.status(400).send('檔案上傳錯誤：' + err.message);
+    } else if (err) {
+        return res.status(400).send(err.message);
+    }
+    next();
+});
+
 // Cleanup old temp folders on startup
 const uploadDir = 'uploads';
 if (fs.existsSync(uploadDir)) {
@@ -261,8 +330,8 @@ if (fs.existsSync(outputDir)) {
     });
 }
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
 });
 
 function cleanup(inputPath, tempDir, outputPath) {
