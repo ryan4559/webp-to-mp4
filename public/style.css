@@ -152,6 +152,8 @@ body {
     font-size: 3.5rem;
     margin-right: 16px;
     animation: bounce 2s ease infinite;
+    -webkit-text-fill-color: initial;
+    background: none;
 }
 
 @keyframes bounce {
