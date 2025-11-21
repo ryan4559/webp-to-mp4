@@ -538,6 +538,26 @@ body {
     .features {
         grid-template-columns: 1fr;
     }
+
+    .github-link {
+        top: 16px;
+        right: 72px;
+        width: 44px;
+        height: 44px;
+    }
+
+    .github-link svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .theme-toggle {
+        top: 16px;
+        right: 16px;
+        width: 44px;
+        height: 44px;
+        font-size: 1.25rem;
+    }
 }
 
 /* Theme Toggle */
@@ -584,4 +604,40 @@ body {
 
 [data-theme="light"] .theme-icon-moon {
     display: none;
+}
+
+/* GitHub Link */
+.github-link {
+    position: fixed;
+    top: 24px;
+    right: 84px;
+    z-index: 100;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-normal);
+    backdrop-filter: blur(10px);
+    text-decoration: none;
+}
+
+.github-link:hover {
+    transform: scale(1.1);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.github-link svg {
+    transition: transform var(--transition-normal);
+}
+
+.github-link:hover svg {
+    transform: rotate(360deg);
 }
