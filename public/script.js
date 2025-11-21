@@ -106,11 +106,11 @@ uploadForm.addEventListener('submit', async (e) => {
     // Simulate progress (since fetch doesn't provide upload progress easily)
     let progress = 0;
     const progressInterval = setInterval(() => {
-        progress += 5;
+        progress += 1;
         if (progress <= 90) {
             progressBar.style.width = progress + '%';
         }
-    }, 200);
+    }, 100);
 
     try {
         const response = await fetch('/convert', {
