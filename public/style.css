@@ -5,6 +5,7 @@
 }
 
 :root {
+    /* Default Dark Theme */
     --color-bg: #0a0e1a;
     --color-surface: #131824;
     --color-surface-hover: #1a2030;
@@ -17,19 +18,33 @@
     --color-text: #f8fafc;
     --color-text-secondary: #94a3b8;
     --color-border: #1e293b;
-    
+
     --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    
+
     --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
     --shadow-glow: 0 0 24px rgba(99, 102, 241, 0.3);
-    
+
     --transition-fast: 0.2s ease;
     --transition-normal: 0.3s ease;
     --transition-slow: 0.5s ease;
+}
+
+[data-theme="light"] {
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-surface-hover: #f1f5f9;
+    --color-text: #0f172a;
+    --color-text-secondary: #475569;
+    --color-border: #e2e8f0;
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.15);
+    --shadow-glow: 0 0 24px rgba(99, 102, 241, 0.15);
 }
 
 body {
@@ -89,15 +104,20 @@ body {
 }
 
 @keyframes float {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: translate(0, 0) scale(1);
     }
+
     25% {
         transform: translate(100px, -50px) scale(1.1);
     }
+
     50% {
         transform: translate(-50px, 100px) scale(0.9);
     }
+
     75% {
         transform: translate(50px, 50px) scale(1.05);
     }
@@ -135,9 +155,12 @@ body {
 }
 
 @keyframes bounce {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: translateY(0);
     }
+
     50% {
         transform: translateY(-10px);
     }
@@ -154,6 +177,7 @@ body {
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -225,9 +249,12 @@ body {
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.6;
     }
@@ -260,6 +287,7 @@ body {
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -391,6 +419,7 @@ body {
     0% {
         background-position: -200% center;
     }
+
     100% {
         background-position: 200% center;
     }
@@ -413,6 +442,7 @@ body {
         opacity: 0;
         transform: scale(0.8);
     }
+
     to {
         opacity: 1;
         transform: scale(1);
@@ -490,20 +520,66 @@ body {
     .container {
         padding: 40px 16px;
     }
-    
+
     .title {
         font-size: 2.5rem;
     }
-    
+
     .icon {
         font-size: 2.5rem;
     }
-    
+
     .upload-card {
         padding: 32px 24px;
     }
-    
+
     .features {
         grid-template-columns: 1fr;
     }
+}
+
+/* Theme Toggle */
+.theme-toggle {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 100;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    font-size: 1.5rem;
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-normal);
+    backdrop-filter: blur(10px);
+}
+
+.theme-toggle:hover {
+    transform: rotate(15deg) scale(1.1);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary);
+}
+
+.theme-icon-sun {
+    display: none;
+}
+
+.theme-icon-moon {
+    display: block;
+}
+
+[data-theme="light"] .theme-icon-sun {
+    display: block;
+}
+
+[data-theme="light"] .theme-icon-moon {
+    display: none;
 }
