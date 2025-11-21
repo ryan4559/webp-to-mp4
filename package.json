@@ -1,0 +1,21 @@
+{
+  "name": "webp_converter",
+  "version": "1.0.0",
+  "description": "WebP to MP4 converter",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "multer": "^1.4.5-lts.1",
+    "node-webpmux": "^3.2.1",
+    "pngjs": "^7.0.0"
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+outputs/
+uploads/
+.env
+.DS_Store
+Thumbs.db
+*.log
+task.md
+walkthrough.md
+implementation_plan.md
+.claude/
