@@ -427,6 +427,28 @@ body {
     }
 }
 
+.progress-bar.pulsing {
+    background: linear-gradient(90deg,
+            var(--color-primary) 0%,
+            var(--color-primary-light) 40%,
+            #764ba2 50%,
+            var(--color-primary-light) 60%,
+            var(--color-primary) 100%);
+    background-size: 200% 100%;
+    animation: pulse-scan 1.5s linear infinite;
+    box-shadow: 0 0 15px var(--color-primary-light);
+}
+
+@keyframes pulse-scan {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: -100% 0;
+    }
+}
+
 .progress-text {
     text-align: center;
     color: var(--color-text-secondary);

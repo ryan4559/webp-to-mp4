@@ -109,6 +109,10 @@ uploadForm.addEventListener('submit', async (e) => {
         progress += 1;
         if (progress <= 90) {
             progressBar.style.width = progress + '%';
+            if (progress === 90) {
+                progressBar.classList.add('pulsing');
+                progressText.textContent = '處理中，請稍候... Processing...';
+            }
         }
     }, 100);
 
@@ -169,6 +173,8 @@ function resetForm() {
     convertButton.disabled = false;
     hideSelectedFile();
     progressBar.style.width = '0%';
+    progressBar.classList.remove('pulsing');
+    progressText.textContent = '轉換中...';
 }
 
 // Theme Toggle Logic
