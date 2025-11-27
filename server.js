@@ -10,6 +10,26 @@ const WebP = require('node-webpmux');
 const { PNG } = require('pngjs');
 const rateLimit = require('express-rate-limit');
 
+// Securely define upload root for path checks
+const UPLOADS_DIR = path.resolve('uploads');
+let uploadRoot;
+try {
+    uploadRoot = fs.realpathSync(UPLOADS_DIR);
+} catch (e) {
+    console.error('Uploads directory does not exist or is inaccessible.');
+    process.exit(1);
+}
+// Helper to verify that a given path is contained within the root
+function isPathSafe(candidatePath, rootPath) {
+    // On Windows, need to handle case sensitivity and separator
+    const relative = path.relative(rootPath, candidatePath);
+    return (
+        relative &&
+        !relative.startsWith('..') &&
+        !path.isAbsolute(relative)
+    );
+}
+
 const app = express();
 
 // Use resolved/canonical uploads root directory for all path checks
@@ -120,6 +140,7 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
     }
     // Use improved path safety check
     if (!isPathSafe(inputPathAbs, uploadRoot)) {
+        // Reject if file not strictly contained in uploads root
         return res.status(403).json({ error: 'Invalid file path.' });
     }
     // Use only the verified, absolute path hereafter
