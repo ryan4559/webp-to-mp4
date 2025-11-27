@@ -283,12 +283,12 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
                 console.log('Conversion finished');
                 console.log(`\n🎬 轉換完成!`);
                 console.log(`📁 暫存檔保留位置: ${tempDir}`);
-                console.log(`📁 輸入檔保留位置: ${inputPath}`);
+                console.log(`📁 輸入檔保留位置: ${inputPathAbs}`);
                 console.log(`📹 輸出檔位置: ${outputPath}\n`);
                 res.download(outputPath, outputFilename, (err) => {
                     if (err) console.error('Error sending file:', err);
 
-                    cleanup(inputPath, tempDir, outputPath);
+                    cleanup(inputPathAbs, tempDir, outputPath);
                 });
             })
             .on('error', (err, stdout, stderr) => {
@@ -297,7 +297,7 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
                 console.log(`📁 錯誤時暫存檔保留位置: ${tempDir}`);
                 // SECURITY: Sanitize error message to prevent XSS
                 res.status(500).json({ error: 'Error during conversion', details: sanitizeErrorMessage(err.message) });
-                cleanup(inputPath, tempDir, outputPath);
+                cleanup(inputPathAbs, tempDir, outputPath);
             })
             .run();
 
