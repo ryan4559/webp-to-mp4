@@ -100,6 +100,19 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
     }
 
     const inputPath = req.file.path;
+    // SECURITY: Verify inputPath is under uploads directory
+    const uploadRoot = path.resolve('uploads');
+    let inputPathAbs;
+    try {
+        inputPathAbs = fs.realpathSync(path.resolve(inputPath));
+    } catch (e) {
+        // If the file isn't found or is invalid, reject
+        return res.status(400).json({ error: 'Uploaded file not found/safe.' });
+    }
+    if (!inputPathAbs.startsWith(uploadRoot + path.sep)) {
+        return res.status(403).json({ error: 'Invalid file path.' });
+    }
+    // Use only the verified, absolute path hereafter
     const outputFilename = `converted-${Date.now()}.mp4`;
     const outputPath = path.join(outputDir, outputFilename);
     const tempDir = path.join('uploads', `temp-${Date.now()}`);
@@ -115,12 +128,12 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
 
         // Load WebP
         let img = new WebP.Image();
-        await img.load(inputPath);
+        await img.load(inputPathAbs);
 
         // Extract and Coalesce frames
         if (!img.hasAnim) {
             console.log('Static WebP detected, copying as single frame...');
-            fs.copyFileSync(inputPath, path.join(tempDir, 'frame_00000.png'));
+            fs.copyFileSync(inputPathAbs, path.join(tempDir, 'frame_00000.png'));
         } else {
             console.log(`Extracting and coalescing ${img.frames.length} frames...`);
             const width = img.width;
@@ -293,7 +306,7 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
         console.log(`📁 錯誤時暫存檔保留位置: ${tempDir}`);
         // SECURITY: Sanitize error message to prevent XSS
         res.status(500).json({ error: 'Error processing WebP', details: sanitizeErrorMessage(error.message) });
-        cleanup(inputPath, tempDir, outputPath);
+        cleanup(inputPathAbs, tempDir, outputPath);
     }
 });
 
