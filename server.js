@@ -109,7 +109,8 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
         // If the file isn't found or is invalid, reject
         return res.status(400).json({ error: 'Uploaded file not found/safe.' });
     }
-    if (!inputPathAbs.startsWith(uploadRoot + path.sep)) {
+    // Use improved path safety check
+    if (!isPathSafe(inputPathAbs, uploadRoot)) {
         return res.status(403).json({ error: 'Invalid file path.' });
     }
     // Use only the verified, absolute path hereafter
@@ -389,12 +390,13 @@ function isPathSafe(filePath, allowedDir) {
     if (!filePath) return false;
 
     try {
-        const normalized = path.normalize(filePath);
-        const resolved = path.resolve(normalized);
-        const allowedPath = path.resolve(allowedDir);
+        // Use realpathSync to resolve symlinks for both paths
+        const resolved = fs.realpathSync(path.resolve(filePath));
+        const allowedPath = fs.realpathSync(path.resolve(allowedDir));
 
-        // Ensure the resolved path starts with the allowed directory
-        return resolved.startsWith(allowedPath + path.sep) || resolved === allowedPath;
+        // Ensure the resolved path is either the allowed directory or inside it
+        return resolved === allowedPath ||
+            (resolved.startsWith(allowedPath + path.sep));
     } catch (e) {
         console.error('Path validation error:', e);
         return false;
