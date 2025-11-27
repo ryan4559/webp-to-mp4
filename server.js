@@ -114,7 +114,7 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
         await WebP.Image.initLib();
 
         // Load WebP
-        const img = new WebP.Image();
+        let img = new WebP.Image();
         await img.load(inputPath);
 
         // Extract and Coalesce frames
@@ -129,7 +129,7 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
             // console.log(`Canvas size: ${width}x${height}, BG Color:`, bg);
 
             // 建立持久畫布（RGBA）
-            const canvas = Buffer.alloc(width * height * 4);
+            let canvas = Buffer.alloc(width * height * 4);
             // 填入背景色
             for (let i = 0; i < width * height; i++) {
                 canvas[i * 4 + 0] = bg[0];
@@ -230,6 +230,8 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
                     console.log(`進度: ${i + 1}/${img.frames.length} (${((i + 1) / img.frames.length * 100).toFixed(0)}%)`);
                 }
             }
+            // Explicitly release canvas memory
+            canvas = null;
         }
 
         console.log('Frames extracted and coalesced, starting conversion...');
@@ -240,6 +242,12 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
             const avgDelay = img.anim.frames[0].delay || 100;
             fps = Math.round(1000 / avgDelay);
             console.log(`Detected FPS: ${fps} (from delay: ${avgDelay}ms)`);
+        }
+
+        // Explicitly release image memory
+        img = null;
+        if (global.gc) {
+            global.gc();
         }
 
         // Convert frames to MP4 using FFmpeg
