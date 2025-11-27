@@ -125,7 +125,21 @@ uploadForm.addEventListener('submit', async (e) => {
         clearInterval(progressInterval);
 
         if (!response.ok) {
-            throw new Error('轉換失敗');
+            // Try to parse JSON error response
+            let errorMessage = '轉換失敗';
+            try {
+                const errorData = await response.json();
+                if (errorData?.error) {
+                    errorMessage = errorData.error;
+                    if (errorData.details) {
+                        errorMessage += ': ' + errorData.details;
+                    }
+                }
+            } catch (e) {
+                // If JSON parsing fails, use status text
+                errorMessage += ' (' + response.status + ')';
+            }
+            throw new Error(errorMessage);
         }
 
         // Complete progress

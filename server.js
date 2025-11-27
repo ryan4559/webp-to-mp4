@@ -96,7 +96,7 @@ if (!fs.existsSync(outputDir)) {
 // Conversion endpoint with rate limiting
 app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res) => {
     if (!req.file) {
-        return res.status(400).send('No file uploaded.');
+        return res.status(400).json({ error: 'No file uploaded.' });
     }
 
     const inputPath = req.file.path;
@@ -282,7 +282,8 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
                 console.error('Error during conversion:', err);
                 console.error('FFmpeg stderr:', stderr);
                 console.log(`📁 錯誤時暫存檔保留位置: ${tempDir}`);
-                res.status(500).send('Error during conversion: ' + err.message);
+                // SECURITY: Sanitize error message to prevent XSS
+                res.status(500).json({ error: 'Error during conversion', details: sanitizeErrorMessage(err.message) });
                 cleanup(inputPath, tempDir, outputPath);
             })
             .run();
@@ -290,7 +291,8 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
     } catch (error) {
         console.error('Error processing WebP:', error);
         console.log(`📁 錯誤時暫存檔保留位置: ${tempDir}`);
-        res.status(500).send('Error processing WebP: ' + error.message);
+        // SECURITY: Sanitize error message to prevent XSS
+        res.status(500).json({ error: 'Error processing WebP', details: sanitizeErrorMessage(error.message) });
         cleanup(inputPath, tempDir, outputPath);
     }
 });
@@ -300,11 +302,14 @@ app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
             const maxSizeMB = MAX_FILE_SIZE / (1024 * 1024);
-            return res.status(400).send(`檔案太大！最大允許 ${maxSizeMB}MB。File too large! Maximum size is ${maxSizeMB}MB.`);
+            // SECURITY: Use JSON response to prevent XSS
+            return res.status(400).json({ error: `檔案太大！最大允許 ${maxSizeMB}MB。File too large! Maximum size is ${maxSizeMB}MB.` });
         }
-        return res.status(400).send('檔案上傳錯誤：' + err.message);
+        // SECURITY: Sanitize error message to prevent XSS
+        return res.status(400).json({ error: '檔案上傳錯誤', details: sanitizeErrorMessage(err.message) });
     } else if (err) {
-        return res.status(400).send(err.message);
+        // SECURITY: Sanitize error message to prevent XSS
+        return res.status(400).json({ error: sanitizeErrorMessage(err.message) });
     }
     next();
 });
@@ -351,6 +356,20 @@ if (fs.existsSync(outputDir)) {
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });
+
+// Security helper: Sanitize error messages to prevent XSS
+function sanitizeErrorMessage(message) {
+    if (!message) return 'An error occurred';
+
+    // Convert to string and escape HTML special characters
+    return String(message)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/\//g, '&#x2F;');
+}
 
 // Security helper: Validate path is within allowed directory
 function isPathSafe(filePath, allowedDir) {
