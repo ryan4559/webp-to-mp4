@@ -111,7 +111,7 @@ uploadForm.addEventListener('submit', async (e) => {
             progressBar.style.width = progress + '%';
             if (progress === 90) {
                 progressBar.classList.add('pulsing');
-                progressText.textContent = '處理中，請稍候... Processing...';
+                progressText.textContent = '處理中，請稍候...';
             }
         }
     }, 100);
