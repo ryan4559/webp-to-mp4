@@ -12,6 +12,15 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// Use resolved/canonical uploads root directory for all path checks
+// (Using let to wrap in try/catch in case directory not present at startup)
+let uploadRoot;
+try {
+    uploadRoot = fs.realpathSync(path.resolve('uploads'));
+} catch (e) {
+    // If the uploads directory does not exist, fall back to absolute path
+    uploadRoot = path.resolve('uploads');
+}
 // Configuration from environment variables
 const PORT = process.env.PORT || 3000;
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE_MB || '50') * 1024 * 1024;
@@ -101,7 +110,7 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
 
     const inputPath = req.file.path;
     // SECURITY: Verify inputPath is under uploads directory
-    const uploadRoot = path.resolve('uploads');
+    // Use canonical root path for safety checks (already defined above)
     let inputPathAbs;
     try {
         inputPathAbs = fs.realpathSync(path.resolve(inputPath));
@@ -414,7 +423,7 @@ function cleanupWithRetry(inputPath, tempDir, outputPath, retries) {
     try {
         // SECURITY: Validate and clean up input file
         if (inputPath) {
-            if (!isPathSafe(inputPath, 'uploads')) {
+            if (!isPathSafe(inputPath, uploadRoot)) {
                 console.warn('Security: Rejected cleanup of input file outside uploads directory:', inputPath);
             } else if (fs.existsSync(inputPath)) {
                 try {
