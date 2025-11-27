@@ -315,6 +315,11 @@ if (fs.existsSync(uploadDir)) {
     fs.readdirSync(uploadDir).forEach(file => {
         if (file.startsWith('temp-')) {
             const tempPath = path.join(uploadDir, file);
+            // SECURITY: Validate path before deletion
+            if (!isPathSafe(tempPath, uploadDir)) {
+                console.warn('Security: Rejected cleanup of temp folder outside uploads directory:', tempPath);
+                return;
+            }
             try {
                 fs.rmSync(tempPath, { recursive: true, force: true });
                 console.log('Cleaned up stale temp folder:', tempPath);
@@ -329,6 +334,11 @@ if (fs.existsSync(uploadDir)) {
 if (fs.existsSync(outputDir)) {
     fs.readdirSync(outputDir).forEach(file => {
         const filePath = path.join(outputDir, file);
+        // SECURITY: Validate path before deletion
+        if (!isPathSafe(filePath, outputDir)) {
+            console.warn('Security: Rejected cleanup of output file outside outputs directory:', filePath);
+            return;
+        }
         try {
             fs.unlinkSync(filePath);
             console.log('Cleaned up stale output file:', filePath);
@@ -342,6 +352,23 @@ app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });
 
+// Security helper: Validate path is within allowed directory
+function isPathSafe(filePath, allowedDir) {
+    if (!filePath) return false;
+
+    try {
+        const normalized = path.normalize(filePath);
+        const resolved = path.resolve(normalized);
+        const allowedPath = path.resolve(allowedDir);
+
+        // Ensure the resolved path starts with the allowed directory
+        return resolved.startsWith(allowedPath + path.sep) || resolved === allowedPath;
+    } catch (e) {
+        console.error('Path validation error:', e);
+        return false;
+    }
+}
+
 function cleanup(inputPath, tempDir, outputPath) {
     // Schedule cleanup with delay to allow file handles to be released
     setTimeout(() => {
@@ -351,45 +378,62 @@ function cleanup(inputPath, tempDir, outputPath) {
 
 function cleanupWithRetry(inputPath, tempDir, outputPath, retries) {
     try {
-        if (fs.existsSync(inputPath)) {
-            try {
-                fs.unlinkSync(inputPath);
-                console.log('Cleaned up input file:', inputPath);
-            } catch (e) {
-                if (e.code === 'EBUSY' && retries > 0) {
-                    console.log(`File busy, retrying... (${retries} attempts left)`);
-                    setTimeout(() => cleanupWithRetry(inputPath, tempDir, outputPath, retries - 1), 500);
-                    return;
-                } else {
-                    console.warn('Could not delete input file (will be cleaned on next startup):', inputPath);
+        // SECURITY: Validate and clean up input file
+        if (inputPath) {
+            if (!isPathSafe(inputPath, 'uploads')) {
+                console.warn('Security: Rejected cleanup of input file outside uploads directory:', inputPath);
+            } else if (fs.existsSync(inputPath)) {
+                try {
+                    fs.unlinkSync(inputPath);
+                    console.log('Cleaned up input file:', inputPath);
+                } catch (e) {
+                    if (e.code === 'EBUSY' && retries > 0) {
+                        console.log(`File busy, retrying... (${retries} attempts left)`);
+                        setTimeout(() => cleanupWithRetry(inputPath, tempDir, outputPath, retries - 1), 500);
+                        return;
+                    } else {
+                        console.warn('Could not delete input file (will be cleaned on next startup):', inputPath);
+                    }
                 }
             }
         }
-        if (fs.existsSync(tempDir)) {
-            try {
-                fs.rmSync(tempDir, { recursive: true, force: true });
-                console.log('Cleaned up temp directory:', tempDir);
-            } catch (e) {
-                if (e.code === 'EBUSY' && retries > 0) {
-                    console.log(`Directory busy, retrying... (${retries} attempts left)`);
-                    setTimeout(() => cleanupWithRetry(inputPath, tempDir, outputPath, retries - 1), 500);
-                    return;
-                } else {
-                    console.warn('Could not delete temp directory (will be cleaned on next startup):', tempDir);
+
+        // SECURITY: Validate and clean up temp directory
+        if (tempDir) {
+            if (!isPathSafe(tempDir, 'uploads')) {
+                console.warn('Security: Rejected cleanup of temp directory outside uploads directory:', tempDir);
+            } else if (fs.existsSync(tempDir)) {
+                try {
+                    fs.rmSync(tempDir, { recursive: true, force: true });
+                    console.log('Cleaned up temp directory:', tempDir);
+                } catch (e) {
+                    if (e.code === 'EBUSY' && retries > 0) {
+                        console.log(`Directory busy, retrying... (${retries} attempts left)`);
+                        setTimeout(() => cleanupWithRetry(inputPath, tempDir, outputPath, retries - 1), 500);
+                        return;
+                    } else {
+                        console.warn('Could not delete temp directory (will be cleaned on next startup):', tempDir);
+                    }
                 }
             }
         }
-        if (outputPath && fs.existsSync(outputPath)) {
-            try {
-                fs.unlinkSync(outputPath);
-                console.log('Cleaned up output file:', outputPath);
-            } catch (e) {
-                if (e.code === 'EBUSY' && retries > 0) {
-                    console.log(`Output file busy, retrying... (${retries} attempts left)`);
-                    setTimeout(() => cleanupWithRetry(inputPath, tempDir, outputPath, retries - 1), 500);
-                    return;
-                } else {
-                    console.warn('Could not delete output file (will be cleaned on next startup):', outputPath);
+
+        // SECURITY: Validate and clean up output file
+        if (outputPath) {
+            if (!isPathSafe(outputPath, 'outputs')) {
+                console.warn('Security: Rejected cleanup of output file outside outputs directory:', outputPath);
+            } else if (fs.existsSync(outputPath)) {
+                try {
+                    fs.unlinkSync(outputPath);
+                    console.log('Cleaned up output file:', outputPath);
+                } catch (e) {
+                    if (e.code === 'EBUSY' && retries > 0) {
+                        console.log(`Output file busy, retrying... (${retries} attempts left)`);
+                        setTimeout(() => cleanupWithRetry(inputPath, tempDir, outputPath, retries - 1), 500);
+                        return;
+                    } else {
+                        console.warn('Could not delete output file (will be cleaned on next startup):', outputPath);
+                    }
                 }
             }
         }
