@@ -2,12 +2,8 @@ require('dotenv').config();
 
 const express = require('express');
 const multer = require('multer');
-const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('ffmpeg-static');
 const path = require('path');
 const fs = require('fs');
-const WebP = require('node-webpmux');
-const { PNG } = require('pngjs');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
@@ -30,7 +26,7 @@ const GENERAL_RATE_LIMIT_WINDOW = parseInt(process.env.GENERAL_RATE_LIMIT_WINDOW
 const GENERAL_RATE_LIMIT_MAX = parseInt(process.env.GENERAL_RATE_LIMIT_MAX || '100');
 
 // Set ffmpeg path
-ffmpeg.setFfmpegPath(ffmpegPath);
+
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
@@ -128,195 +124,52 @@ app.post('/convert', convertLimiter, upload.single('webpFile'), async (req, res)
     const outputPath = path.join(outputDir, outputFilename);
     const tempDir = path.join('uploads', `temp-${Date.now()}`);
 
+    const { fork } = require('child_process');
+
     try {
         // Create temp directory for frames
         if (!fs.existsSync(tempDir)) {
             fs.mkdirSync(tempDir);
         }
 
-        // Initialize WebP library (required for getFrameData)
-        await WebP.Image.initLib();
+        console.log('Spawning worker for conversion...');
+        const worker = fork(path.join(__dirname, 'conversion-worker.js'), [inputPathAbs, tempDir, outputPath]);
 
-        // Load WebP
-        let img = new WebP.Image();
-        await img.load(inputPathAbs);
-
-        // Extract and Coalesce frames
-        if (!img.hasAnim) {
-            console.log('Static WebP detected, copying as single frame...');
-            fs.copyFileSync(inputPathAbs, path.join(tempDir, 'frame_00000.png'));
-        } else {
-            console.log(`Extracting and coalescing ${img.frames.length} frames...`);
-            const width = img.width;
-            const height = img.height;
-            const bg = (img.anim && img.anim.bgColor) ? img.anim.bgColor : [255, 255, 255, 255]; // RGBA
-            // console.log(`Canvas size: ${width}x${height}, BG Color:`, bg);
-
-            // 建立持久畫布（RGBA）
-            let canvas = Buffer.alloc(width * height * 4);
-            // 填入背景色
-            for (let i = 0; i < width * height; i++) {
-                canvas[i * 4 + 0] = bg[0];
-                canvas[i * 4 + 1] = bg[1];
-                canvas[i * 4 + 2] = bg[2];
-                canvas[i * 4 + 3] = bg[3];
+        worker.on('message', (msg) => {
+            if (msg.type === 'progress') {
+                console.log(`[Worker] ${msg.message} (${msg.value}%)`);
             }
+        });
 
-            console.log('Starting frame composition...');
-
-            for (let i = 0; i < img.frames.length; i++) {
-                const fmeta = img.anim.frames[i]; // 含 x,y,width,height,blend,dispose,delay 等
-                const rgba = await img.getFrameData(i); // 幀本身的 RGBA，尺寸為 fmeta.width x fmeta.height
-
-                const x0 = (fmeta.x || 0) * 2;  // RFC 9649 規範要求座標 ×2
-                const y0 = (fmeta.y || 0) * 2;  // RFC 9649 規範要求座標 ×2
-                const fw = fmeta.width;
-                const fh = fmeta.height;
-
-                // 根據 blend 模式處理幀數據
-                if (fmeta.blend === false) {
-                    // NO_BLEND: 直接覆蓋，不進行 alpha 混合
-                    for (let y = 0; y < fh; y++) {
-                        for (let x = 0; x < fw; x++) {
-                            const si = (y * fw + x) * 4;
-                            const di = ((y0 + y) * width + (x0 + x)) * 4;
-
-                            // 直接複製 RGBA，不管 alpha 值
-                            canvas[di + 0] = rgba[si + 0];
-                            canvas[di + 1] = rgba[si + 1];
-                            canvas[di + 2] = rgba[si + 2];
-                            canvas[di + 3] = rgba[si + 3];
-                        }
-                    }
-                } else {
-                    // BLEND: 進行 alpha 混合
-                    for (let y = 0; y < fh; y++) {
-                        for (let x = 0; x < fw; x++) {
-                            const si = (y * fw + x) * 4;
-                            const di = ((y0 + y) * width + (x0 + x)) * 4;
-
-                            const sa = rgba[si + 3];
-                            if (sa === 255) {
-                                // 完全不透明：直接覆蓋
-                                canvas[di + 0] = rgba[si + 0];
-                                canvas[di + 1] = rgba[si + 1];
-                                canvas[di + 2] = rgba[si + 2];
-                                canvas[di + 3] = 255;
-                            } else if (sa === 0) {
-                                // 完全透明：保留畫布原內容
-                            } else {
-                                // 半透明：Porter-Duff "source over" alpha 合成
-                                const da = canvas[di + 3];
-                                const outA = sa + da * (255 - sa) / 255;
-                                const sr = rgba[si + 0], sg = rgba[si + 1], sb = rgba[si + 2];
-                                const dr = canvas[di + 0], dg = canvas[di + 1], db = canvas[di + 2];
-
-                                if (outA > 0) {
-                                    canvas[di + 0] = ((sr * sa + dr * da * (255 - sa) / 255) / outA) | 0;
-                                    canvas[di + 1] = ((sg * sa + dg * da * (255 - sa) / 255) / outA) | 0;
-                                    canvas[di + 2] = ((sb * sa + db * da * (255 - sa) / 255) / outA) | 0;
-                                    canvas[di + 3] = outA | 0;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                const frameIndex = i.toString().padStart(5, '0');
-                // 先保存原始幀數據（用於調試）
-                // const rawPng = new PNG({ width: fw, height: fh });
-                // rawPng.data = Buffer.from(rgba);
-                // const rawPath = path.join(tempDir, `raw_${frameIndex}.png`);
-                // await new Promise((resolve, reject) => rawPng.pack().pipe(fs.createWriteStream(rawPath)).on('finish', resolve).on('error', reject));
-
-                // 將「已攤平」的整張畫布存成 PNG
-                const png = new PNG({ width, height });
-                png.data = Buffer.from(canvas); // 複製畫布快照
-                const outPath = path.join(tempDir, `frame_${frameIndex}.png`);
-                await new Promise((resolve, reject) => png.pack().pipe(fs.createWriteStream(outPath)).on('finish', resolve).on('error', reject));
-
-                // dispose=true：輸出後把該矩形恢復成背景（WebP 的 background）
-                if (fmeta.dispose === true) {
-                    for (let y = 0; y < fh; y++) {
-                        const rowOff = (y0 + y) * width * 4 + x0 * 4;
-                        for (let x = 0; x < fw; x++) {
-                            const p = rowOff + x * 4;
-                            canvas[p + 0] = bg[0];
-                            canvas[p + 1] = bg[1];
-                            canvas[p + 2] = bg[2];
-                            canvas[p + 3] = bg[3];
-                        }
-                    }
-                }
-
-                // Progress indicator every 50 frames
-                if (i % 50 === 0 || i === img.frames.length - 1) {
-                    console.log(`進度: ${i + 1}/${img.frames.length} (${((i + 1) / img.frames.length * 100).toFixed(0)}%)`);
-                }
-            }
-            // Explicitly release canvas memory
-            canvas = null;
-        }
-
-        console.log('Frames extracted and coalesced, starting conversion...');
-
-        // 計算 FPS
-        let fps = 10;
-        if (img.hasAnim && img.anim.frames.length > 0) {
-            const avgDelay = img.anim.frames[0].delay || 100;
-            fps = Math.round(1000 / avgDelay);
-            console.log(`Detected FPS: ${fps} (from delay: ${avgDelay}ms)`);
-        }
-
-        // Explicitly release image memory
-        img = null;
-        if (global.gc) {
-            global.gc();
-        }
-
-        // Convert frames to MP4 using FFmpeg
-        ffmpeg()
-            .input(path.join(tempDir, 'frame_%05d.png'))
-            .inputFPS(fps)
-            .output(outputPath)
-            .videoCodec('libx264')
-            .outputOptions([
-                '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', // Ensure dimensions are divisible by 2
-                '-pix_fmt', 'yuv420p' // Ensure compatibility
-            ])
-            .on('start', (commandLine) => {
-                console.log('Spawned Ffmpeg with command: ' + commandLine);
-            })
-            // .on('stderr', (stderrLine) => {
-            //     console.log('Stderr output: ' + stderrLine);
-            // })
-            .on('end', () => {
-                console.log('Conversion finished');
+        worker.on('exit', (code) => {
+            if (code === 0) {
+                console.log('Worker finished successfully.');
                 console.log(`\n🎬 轉換完成!`);
                 console.log(`📁 暫存檔保留位置: ${tempDir}`);
                 console.log(`📁 輸入檔保留位置: ${inputPathAbs}`);
                 console.log(`📹 輸出檔位置: ${outputPath}\n`);
                 res.download(outputPath, outputFilename, (err) => {
                     if (err) console.error('Error sending file:', err);
-
                     cleanup(inputPathAbs, tempDir, outputPath);
                 });
-            })
-            .on('error', (err, stdout, stderr) => {
-                console.error('Error during conversion:', err);
-                console.error('FFmpeg stderr:', stderr);
+            } else {
+                console.error('Worker failed with code:', code);
                 console.log(`📁 錯誤時暫存檔保留位置: ${tempDir}`);
-                // SECURITY: Sanitize error message to prevent XSS
-                res.status(500).json({ error: 'Error during conversion', details: sanitizeErrorMessage(err.message) });
+                res.status(500).send('Error during conversion (Worker failed)');
                 cleanup(inputPathAbs, tempDir, outputPath);
-            })
-            .run();
+            }
+        });
+
+        worker.on('error', (err) => {
+            console.error('Failed to start worker:', err);
+            res.status(500).send('Failed to start conversion worker');
+            cleanup(inputPathAbs, tempDir, outputPath);
+        });
 
     } catch (error) {
-        console.error('Error processing WebP:', error);
+        console.error('Error initiating conversion:', error);
         console.log(`📁 錯誤時暫存檔保留位置: ${tempDir}`);
-        // SECURITY: Sanitize error message to prevent XSS
-        res.status(500).json({ error: 'Error processing WebP', details: sanitizeErrorMessage(error.message) });
+        res.status(500).send('Error initiating conversion: ' + error.message);
         cleanup(inputPathAbs, tempDir, outputPath);
     }
 });
