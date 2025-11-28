@@ -613,19 +613,19 @@ body {
 }
 
 .theme-icon-sun {
-    display: none;
+    display: block;
 }
 
 .theme-icon-moon {
-    display: block;
+    display: none;
 }
 
 [data-theme="light"] .theme-icon-sun {
-    display: block;
+    display: none;
 }
 
 [data-theme="light"] .theme-icon-moon {
-    display: none;
+    display: block;
 }
 
 /* GitHub Link */
